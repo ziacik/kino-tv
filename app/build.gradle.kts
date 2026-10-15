@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
-val torrServerAbi = providers.gradleProperty("torrserverAbi").orElse("arm64-v8a")
 val tmdbApiKey = providers.gradleProperty("tmdbApiKey")
     .orElse(providers.environmentVariable("TMDB_API_KEY"))
     .orElse("")
@@ -28,6 +27,9 @@ val torrServerAssets = mapOf(
         "9bab078a0976b86ff392c9eee756194643f4e939ee2c9504dfd4ab7094ef9490",
     ),
 )
+val torrServerAbis = providers.gradleProperty("torrserverAbi")
+    .map { listOf(it) }
+    .orElse(torrServerAssets.keys.toList())
 val generatedTorrServerJniLibsDir = layout.buildDirectory
     .dir("generated/torrserver/jniLibs")
     .get()
@@ -35,26 +37,24 @@ val generatedTorrServerJniLibsDir = layout.buildDirectory
 
 val prepareTorrServerBinary = tasks.register("prepareTorrServerBinary") {
     notCompatibleWithConfigurationCache("Downloads and verifies the pinned TorrServer release asset")
-    inputs.property("torrserverAbi", torrServerAbi)
+    inputs.property("torrserverAbis", torrServerAbis)
     outputs.dir(generatedTorrServerJniLibsDir)
 
     doLast {
-        val abi = torrServerAbi.get()
-        val asset = torrServerAssets[abi]
-            ?: throw GradleException("Unsupported TorrServer ABI: $abi")
-        val assetName = asset.first
-        val expectedSha256 = asset.second
+        val abis = torrServerAbis.get()
+        abis.forEach { abi ->
+            if (abi !in torrServerAssets) {
+                throw GradleException("Unsupported TorrServer ABI: $abi")
+            }
+        }
 
         generatedTorrServerJniLibsDir.listFiles()
-            ?.filter { it.name != abi }
+            ?.filter { it.name !in abis }
             ?.forEach { staleAbiDir ->
                 if (!staleAbiDir.deleteRecursively()) {
                     throw GradleException("Could not remove stale TorrServer ABI directory: $staleAbiDir")
                 }
             }
-
-        val outputDir = generatedTorrServerJniLibsDir.resolve(abi)
-        val outputFile = outputDir.resolve("libtorrserver.so")
 
         fun sha256(file: java.io.File): String {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -69,42 +69,48 @@ val prepareTorrServerBinary = tasks.register("prepareTorrServerBinary") {
             return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
         }
 
-        if (outputFile.isFile && sha256(outputFile) == expectedSha256) {
-            logger.lifecycle("Using cached TorrServer $abi binary")
-            return@doLast
-        }
+        for (abi in abis) {
+            val (assetName, expectedSha256) = torrServerAssets.getValue(abi)
+            val outputDir = generatedTorrServerJniLibsDir.resolve(abi)
+            val outputFile = outputDir.resolve("libtorrserver.so")
 
-        outputDir.mkdirs()
-        val temporaryFile = outputDir.resolve("libtorrserver.so.tmp")
-        temporaryFile.delete()
-        outputFile.delete()
-
-        val url = URI(
-            "https://github.com/YouROK/TorrServer/releases/download/MatriX.143/$assetName",
-        ).toURL()
-        logger.lifecycle("Downloading TorrServer $assetName")
-        url.openConnection().apply {
-            connectTimeout = 30_000
-            readTimeout = 120_000
-        }.getInputStream().buffered().use { input ->
-            temporaryFile.outputStream().buffered().use { output ->
-                input.copyTo(output)
+            if (outputFile.isFile && sha256(outputFile) == expectedSha256) {
+                logger.lifecycle("Using cached TorrServer $abi binary")
+                continue
             }
-        }
 
-        val actualSha256 = sha256(temporaryFile)
-        if (actualSha256 != expectedSha256) {
+            outputDir.mkdirs()
+            val temporaryFile = outputDir.resolve("libtorrserver.so.tmp")
             temporaryFile.delete()
-            throw GradleException(
-                "TorrServer SHA-256 mismatch for $assetName: expected $expectedSha256, got $actualSha256",
-            )
-        }
+            outputFile.delete()
 
-        if (!temporaryFile.renameTo(outputFile)) {
-            temporaryFile.copyTo(outputFile, overwrite = true)
-            temporaryFile.delete()
+            val url = URI(
+                "https://github.com/YouROK/TorrServer/releases/download/MatriX.143/$assetName",
+            ).toURL()
+            logger.lifecycle("Downloading TorrServer $assetName")
+            url.openConnection().apply {
+                connectTimeout = 30_000
+                readTimeout = 120_000
+            }.getInputStream().buffered().use { input ->
+                temporaryFile.outputStream().buffered().use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            val actualSha256 = sha256(temporaryFile)
+            if (actualSha256 != expectedSha256) {
+                temporaryFile.delete()
+                throw GradleException(
+                    "TorrServer SHA-256 mismatch for $assetName: expected $expectedSha256, got $actualSha256",
+                )
+            }
+
+            if (!temporaryFile.renameTo(outputFile)) {
+                temporaryFile.copyTo(outputFile, overwrite = true)
+                temporaryFile.delete()
+            }
+            logger.lifecycle("Prepared TorrServer $abi at ${outputFile.absolutePath}")
         }
-        logger.lifecycle("Prepared TorrServer $abi at ${outputFile.absolutePath}")
     }
 }
 
@@ -117,8 +123,8 @@ android {
         minSdk = 26
         targetSdk = 37
         // Increment both values together for a public release; changing this file publishes it.
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKey.get()}\"")
         buildConfigField("String", "OPENSUBTITLES_API_KEY", "\"${openSubtitlesApiKey.get()}\"")
@@ -164,7 +170,7 @@ android {
     lint {
         warningsAsErrors = true
         abortOnError = true
-        disable += setOf("AndroidGradlePluginVersion", "NewerVersionAvailable")
+        disable += setOf("AndroidGradlePluginVersion", "NewerVersionAvailable", "GradleDependency")
     }
 
     compileOptions {

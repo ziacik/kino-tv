@@ -66,13 +66,22 @@ jobs:
         run: ./gradlew :app:assembleDebug :app:assembleAndroidTest --stacktrace --no-configuration-cache
 
       - name: Verify TorrServer executable packaging
-        run: unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'lib/arm64-v8a/libtorrserver.so'
+        run: |
+          for abi in arm64-v8a armeabi-v7a; do
+            unzip -p app/build/outputs/apk/debug/app-debug.apk "lib/$abi/libtorrserver.so" > /dev/null
+          done
 
       - name: Verify clean 32-bit TorrServer ABI switch
         run: |
           ./gradlew :app:prepareTorrServerBinary -PtorrserverAbi=armeabi-v7a --stacktrace --no-configuration-cache
           test -f app/build/generated/torrserver/jniLibs/armeabi-v7a/libtorrserver.so
           test ! -e app/build/generated/torrserver/jniLibs/arm64-v8a/libtorrserver.so
+
+      - name: Verify universal TorrServer ABI restore
+        run: |
+          ./gradlew :app:prepareTorrServerBinary --stacktrace --no-configuration-cache
+          test -f app/build/generated/torrserver/jniLibs/armeabi-v7a/libtorrserver.so
+          test -f app/build/generated/torrserver/jniLibs/arm64-v8a/libtorrserver.so
 
       - name: Upload verification reports
         if: failure()
