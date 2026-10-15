@@ -14,6 +14,10 @@ val tmdbApiKey = providers.gradleProperty("tmdbApiKey")
 val openSubtitlesApiKey = providers.gradleProperty("opensubtitlesApiKey")
     .orElse(providers.environmentVariable("OPENSUBTITLES_API_KEY"))
     .orElse("")
+val releaseKeystoreFile = System.getenv("KINO_KEYSTORE_FILE")
+val releaseKeystorePassword = System.getenv("KINO_KEYSTORE_PASSWORD")
+val releaseKeyAlias = System.getenv("KINO_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("KINO_KEY_PASSWORD")
 val torrServerAssets = mapOf(
     "arm64-v8a" to Pair(
         "TorrServer-android-arm64",
@@ -112,11 +116,33 @@ android {
         applicationId = "sk.ziacik.androidstreamplayer"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        // Increment both values together for a public release; changing this file publishes it.
+        versionCode = 2
+        versionName = "0.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKey.get()}\"")
         buildConfigField("String", "OPENSUBTITLES_API_KEY", "\"${openSubtitlesApiKey.get()}\"")
+    }
+
+    if (releaseKeystoreFile != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseKeystoreFile)
+                storePassword = requireNotNull(releaseKeystorePassword) {
+                    "KINO_KEYSTORE_PASSWORD is required when KINO_KEYSTORE_FILE is set"
+                }
+                keyAlias = requireNotNull(releaseKeyAlias) {
+                    "KINO_KEY_ALIAS is required when KINO_KEYSTORE_FILE is set"
+                }
+                keyPassword = requireNotNull(releaseKeyPassword) {
+                    "KINO_KEY_PASSWORD is required when KINO_KEYSTORE_FILE is set"
+                }
+            }
+        }
+
+        buildTypes.getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 
     sourceSets {

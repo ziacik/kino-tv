@@ -2,15 +2,23 @@ package sk.ziacik.androidstreamplayer
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.media3.common.util.UnstableApi
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import sk.ziacik.androidstreamplayer.catalog.MovieBrowseController
 import sk.ziacik.androidstreamplayer.catalog.MovieSearchController
@@ -34,8 +42,12 @@ import sk.ziacik.androidstreamplayer.torrent.TorrServerRuntime
 import sk.ziacik.androidstreamplayer.torrent.TorrServerTorrentStreamer
 import sk.ziacik.androidstreamplayer.ui.KinoApp
 import sk.ziacik.androidstreamplayer.ui.KinoPlayerScreen
+import sk.ziacik.androidstreamplayer.ui.UpdatePrompt
 import sk.ziacik.androidstreamplayer.ui.WatchProgressEffect
 import sk.ziacik.androidstreamplayer.ui.theme.AndroidStreamPlayerTheme
+import sk.ziacik.androidstreamplayer.update.AppUpdateState
+import sk.ziacik.androidstreamplayer.update.GithubAppUpdater
+import sk.ziacik.androidstreamplayer.update.UpdateInfo
 import sk.ziacik.androidstreamplayer.watch.SharedPreferencesWatchProgressStorage
 import sk.ziacik.androidstreamplayer.watch.WatchProgressRepository
 
@@ -43,6 +55,7 @@ import sk.ziacik.androidstreamplayer.watch.WatchProgressRepository
 class MainActivity : ComponentActivity() {
 	private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 	private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+	private val updateState = MutableStateFlow<AppUpdateState>(AppUpdateState.Hidden)
 
 	private lateinit var movieBrowseController: MovieBrowseController
 	private lateinit var movieSearchController: MovieSearchController
@@ -53,6 +66,8 @@ class MainActivity : ComponentActivity() {
 	private lateinit var playerPort: Media3PlayerPort
 	private lateinit var torrentRuntime: TorrServerRuntime
 	private lateinit var watchProgressRepository: WatchProgressRepository
+	private lateinit var appUpdater: GithubAppUpdater
+	private var pendingUpdateAfterPermission: UpdateInfo? = null
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -63,6 +78,7 @@ class MainActivity : ComponentActivity() {
 				View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
 				View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
+		appUpdater = GithubAppUpdater(this)
 		playerPort = Media3PlayerPort(this)
 		watchProgressRepository = WatchProgressRepository(
 			storage = SharedPreferencesWatchProgressStorage(applicationContext),
@@ -136,49 +152,84 @@ class MainActivity : ComponentActivity() {
 
 		setContent {
 			AndroidStreamPlayerTheme {
-				KinoApp(
-					movieBrowseController = movieBrowseController,
-					movieSearchController = movieSearchController,
-					seriesController = seriesController,
-					torrentSearchController = torrentSearchController,
-					playbackController = playbackController,
-					watchProgressRepository = watchProgressRepository,
-					settingsController = settingsController,
-					playerContent = {
-						movie,
-						result,
-						resumePositionMs,
-						subtitleState,
-						onSubtitleSelected,
-						onExit,
-						->
-						WatchProgressEffect(
-							player = playerPort.player,
-							movie = movie,
-							result = result,
-							resumePositionMs = resumePositionMs,
-							repository = watchProgressRepository,
-						)
-						KinoPlayerScreen(
-							player = playerPort.player,
-							movieTitle = movie?.displayTitle ?: "Now playing",
-							result = result,
-							subtitleState = subtitleState,
-							onSubtitleSelected = onSubtitleSelected,
-							onExit = onExit,
-						)
-					},
-				)
+				val currentUpdateState by updateState.collectAsState()
+				Box(Modifier.fillMaxSize()) {
+					KinoApp(
+						movieBrowseController = movieBrowseController,
+						movieSearchController = movieSearchController,
+						seriesController = seriesController,
+						torrentSearchController = torrentSearchController,
+						playbackController = playbackController,
+						watchProgressRepository = watchProgressRepository,
+						settingsController = settingsController,
+						playerContent = {
+							movie,
+							result,
+							resumePositionMs,
+							subtitleState,
+							onSubtitleSelected,
+							onExit,
+							->
+							WatchProgressEffect(
+								player = playerPort.player,
+								movie = movie,
+								result = result,
+								resumePositionMs = resumePositionMs,
+								repository = watchProgressRepository,
+							)
+							KinoPlayerScreen(
+								player = playerPort.player,
+								movieTitle = movie?.displayTitle ?: "Now playing",
+								result = result,
+								subtitleState = subtitleState,
+								onSubtitleSelected = onSubtitleSelected,
+								onExit = onExit,
+							)
+						},
+					)
+					UpdatePrompt(
+						state = currentUpdateState,
+						onUpdate = {
+							val info = when (val state = updateState.value) {
+								is AppUpdateState.Available -> state.info
+								is AppUpdateState.Error -> state.info
+								else -> null
+							}
+							if (info != null) requestOrInstallUpdate(info)
+						},
+						onLater = { updateState.value = AppUpdateState.Hidden },
+						modifier = Modifier.align(Alignment.Center),
+					)
+				}
 			}
 		}
 
 		handleIntent(intent)
+
+		if (appUpdater.shouldUseSelfUpdater()) {
+			appScope.launch {
+				runCatching { appUpdater.checkForUpdate() }
+					.onSuccess { info ->
+						if (info != null) updateState.value = AppUpdateState.Available(info)
+					}
+					.onFailure { Log.w("Kino", "Update check failed", it) }
+			}
+		}
 	}
 
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
 		setIntent(intent)
 		handleIntent(intent)
+	}
+
+	override fun onResume() {
+		super.onResume()
+		val pending = pendingUpdateAfterPermission ?: return
+		if (appUpdater.canRequestPackageInstalls()) {
+			pendingUpdateAfterPermission = null
+			startUpdate(pending)
+		}
 	}
 
 	override fun onStop() {
@@ -210,6 +261,34 @@ class MainActivity : ComponentActivity() {
 		}
 
 		super.onDestroy()
+	}
+
+	private fun requestOrInstallUpdate(info: UpdateInfo) {
+		if (!appUpdater.canRequestPackageInstalls()) {
+			pendingUpdateAfterPermission = info
+			appUpdater.requestInstallPermission(this)
+			return
+		}
+		startUpdate(info)
+	}
+
+	private fun startUpdate(info: UpdateInfo) {
+		if (updateState.value is AppUpdateState.Downloading) return
+		updateState.value = AppUpdateState.Downloading(info)
+		appScope.launch {
+			runCatching { appUpdater.download(info) }
+				.onSuccess { apk ->
+					updateState.value = AppUpdateState.Hidden
+					appUpdater.install(this@MainActivity, apk)
+				}
+				.onFailure { error ->
+					Log.w("Kino", "Update download failed", error)
+					updateState.value = AppUpdateState.Error(
+						info = info,
+						message = "Aktualizáciu sa nepodarilo stiahnuť alebo overiť.",
+					)
+				}
+		}
 	}
 
 	private fun handleIntent(intent: Intent) {
