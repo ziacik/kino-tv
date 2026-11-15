@@ -27,15 +27,13 @@ import sk.ziacik.androidstreamplayer.catalog.TmdbMovieCatalog
 import sk.ziacik.androidstreamplayer.playback.PlaybackController
 import sk.ziacik.androidstreamplayer.player.Media3PlayerPort
 import sk.ziacik.androidstreamplayer.search.CompositeTorrentSearchProvider
-import sk.ziacik.androidstreamplayer.search.FallbackSkTorrentCredentialsStore
+import sk.ziacik.androidstreamplayer.search.BundledSkTorrentCredentialsStore
 import sk.ziacik.androidstreamplayer.search.SkTorrentCredentials
 import sk.ziacik.androidstreamplayer.search.KnabenTorrentSearchProvider
 import sk.ziacik.androidstreamplayer.search.OkHttpSkTorrentSession
-import sk.ziacik.androidstreamplayer.search.SharedPreferencesSkTorrentCredentialsStore
 import sk.ziacik.androidstreamplayer.search.SkTorrentSearchProvider
 import sk.ziacik.androidstreamplayer.search.SkTorrentTorrentFileFetcher
 import sk.ziacik.androidstreamplayer.search.TorrentSearchController
-import sk.ziacik.androidstreamplayer.settings.SettingsController
 import sk.ziacik.androidstreamplayer.subtitle.OpenSubtitlesSubtitleProvider
 import sk.ziacik.androidstreamplayer.torrent.LocalTorrServerRuntime
 import sk.ziacik.androidstreamplayer.torrent.TorrServerClient
@@ -62,7 +60,6 @@ class MainActivity : ComponentActivity() {
 	private lateinit var movieBrowseController: MovieBrowseController
 	private lateinit var movieSearchController: MovieSearchController
 	private lateinit var seriesController: SeriesController
-	private lateinit var settingsController: SettingsController
 	private lateinit var torrentSearchController: TorrentSearchController
 	private lateinit var playbackController: PlaybackController
 	private lateinit var playerPort: Media3PlayerPort
@@ -116,9 +113,8 @@ class MainActivity : ComponentActivity() {
 			scope = appScope,
 			catalog = movieCatalog,
 		)
-		val skTorrentCredentialsStore = FallbackSkTorrentCredentialsStore(
-			local = SharedPreferencesSkTorrentCredentialsStore(applicationContext),
-			bundled = SkTorrentCredentials(
+		val skTorrentCredentialsStore = BundledSkTorrentCredentialsStore(
+			SkTorrentCredentials(
 				username = BuildConfig.SKTORRENT_USERNAME,
 				password = BuildConfig.SKTORRENT_PASSWORD,
 			),
@@ -132,7 +128,6 @@ class MainActivity : ComponentActivity() {
 			runtime = torrentRuntime,
 			torrentFileFetcher = skTorrentTorrentFileFetcher::fetch,
 		)
-		settingsController = SettingsController(skTorrentCredentialsStore)
 		torrentSearchController = TorrentSearchController(
 			scope = appScope,
 			catalog = movieCatalog,
@@ -169,7 +164,6 @@ class MainActivity : ComponentActivity() {
 						torrentSearchController = torrentSearchController,
 						playbackController = playbackController,
 						watchProgressRepository = watchProgressRepository,
-						settingsController = settingsController,
 						playerContent = {
 							movie,
 							result,
