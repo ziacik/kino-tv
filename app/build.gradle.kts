@@ -130,8 +130,8 @@ android {
         minSdk = 26
         targetSdk = 37
         // Increment both values together for a public release; changing this file publishes it.
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKey.get()}\"")
         buildConfigField("String", "OPENSUBTITLES_API_KEY", "\"${openSubtitlesApiKey.get()}\"")
