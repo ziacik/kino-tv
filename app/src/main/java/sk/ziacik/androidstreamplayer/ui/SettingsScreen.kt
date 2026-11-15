@@ -92,9 +92,9 @@ fun SettingsScreen(
                 }
             }
 
-            if (state.saved) {
+            state.feedback?.let { feedback ->
                 Text(
-                    text = if (state.configured) "Saved" else "Credentials cleared",
+                    text = feedback,
                     color = MaterialTheme.colorScheme.secondary,
                 )
             }
