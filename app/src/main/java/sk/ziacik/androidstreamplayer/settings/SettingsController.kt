@@ -10,7 +10,7 @@ data class SettingsUiState(
     val username: String = "",
     val password: String = "",
     val configured: Boolean = false,
-    val saved: Boolean = false,
+    val feedback: String? = null,
 )
 
 class SettingsController(
@@ -20,11 +20,11 @@ class SettingsController(
     val state: StateFlow<SettingsUiState> = mutableState.asStateFlow()
 
     fun setUsername(value: String) {
-        mutableState.value = mutableState.value.copy(username = value, saved = false)
+        mutableState.value = mutableState.value.copy(username = value, feedback = null)
     }
 
     fun setPassword(value: String) {
-        mutableState.value = mutableState.value.copy(password = value, saved = false)
+        mutableState.value = mutableState.value.copy(password = value, feedback = null)
     }
 
     fun save() {
@@ -32,20 +32,18 @@ class SettingsController(
         val credentials = SkTorrentCredentials(current.username.trim(), current.password)
         if (credentials.isComplete) {
             credentialsStore.save(credentials)
-            mutableState.value = current.copy(
-                username = credentials.username,
-                configured = true,
-                saved = true,
-            )
+            mutableState.value = loadState().copy(feedback = "Saved")
         } else {
-            credentialsStore.clear()
-            mutableState.value = SettingsUiState(saved = true)
+            clear()
         }
     }
 
     fun clear() {
         credentialsStore.clear()
-        mutableState.value = SettingsUiState(saved = true)
+        val restored = loadState()
+        mutableState.value = restored.copy(
+            feedback = if (restored.configured) "Using bundled account" else "Credentials cleared",
+        )
     }
 
     private fun loadState(): SettingsUiState {
