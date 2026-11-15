@@ -47,3 +47,19 @@ class SharedPreferencesSkTorrentCredentialsStore(context: Context) : SkTorrentCr
         const val KEY_PASSWORD = "password"
     }
 }
+
+/**
+ * Uses locally saved credentials when present, otherwise the account packaged at build time.
+ * Clearing a local override restores the bundled account.
+ */
+class FallbackSkTorrentCredentialsStore(
+    private val local: SkTorrentCredentialsStore,
+    private val bundled: SkTorrentCredentials?,
+) : SkTorrentCredentialsStore {
+    override fun load(): SkTorrentCredentials? =
+        local.load()?.takeIf { it.isComplete } ?: bundled?.takeIf { it.isComplete }
+
+    override fun save(credentials: SkTorrentCredentials) = local.save(credentials)
+
+    override fun clear() = local.clear()
+}
