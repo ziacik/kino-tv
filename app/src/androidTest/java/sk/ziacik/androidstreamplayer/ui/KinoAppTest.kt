@@ -37,12 +37,9 @@ import sk.ziacik.androidstreamplayer.catalog.MovieSearchController
 import sk.ziacik.androidstreamplayer.catalog.SeriesController
 import sk.ziacik.androidstreamplayer.playback.PlaybackController
 import sk.ziacik.androidstreamplayer.search.MovieTorrentSearchRequest
-import sk.ziacik.androidstreamplayer.search.SkTorrentCredentials
-import sk.ziacik.androidstreamplayer.search.SkTorrentCredentialsStore
 import sk.ziacik.androidstreamplayer.search.TorrentSearchController
 import sk.ziacik.androidstreamplayer.search.TorrentSearchProvider
 import sk.ziacik.androidstreamplayer.search.TorrentSearchResult
-import sk.ziacik.androidstreamplayer.settings.SettingsController
 import sk.ziacik.androidstreamplayer.torrent.TorrentSource
 import sk.ziacik.androidstreamplayer.torrent.TorrentStreamer
 import sk.ziacik.androidstreamplayer.watch.WatchProgressEntry
@@ -87,7 +84,6 @@ class KinoAppTest {
 				torrentSearchController = torrentSearchController,
 				playbackController = playbackController,
 				watchProgressRepository = watchProgressRepository(),
-				settingsController = testSettingsController(),
 				playerContent = { _, result, _, _, _, onExit ->
 					Box(
 						modifier = Modifier
@@ -212,7 +208,6 @@ class KinoAppTest {
 				torrentSearchController = torrentSearchController,
 				playbackController = playbackController,
 				watchProgressRepository = watchProgressRepository(),
-				settingsController = testSettingsController(),
 				playerContent = { _, _, _, _, _, _ -> Box(Modifier.testTag("kino-player")) },
 			)
 		}
@@ -280,7 +275,6 @@ class KinoAppTest {
 				torrentSearchController = torrentSearchController,
 				playbackController = playbackController,
 				watchProgressRepository = watchProgressRepository(listOf(entry)),
-				settingsController = testSettingsController(),
 				playerContent = { movie, result, resumePositionMs, _, _, onExit ->
 					playerMovie = movie
 					playerResult = result
@@ -380,14 +374,6 @@ class KinoAppTest {
 		voteAverage = 7.0,
 		posterPath = null,
 		backdropPath = null,
-	)
-
-	private fun testSettingsController() = SettingsController(
-		object : SkTorrentCredentialsStore {
-			override fun load(): SkTorrentCredentials? = null
-			override fun save(credentials: SkTorrentCredentials) = Unit
-			override fun clear() = Unit
-		},
 	)
 
 	private fun watchProgressRepository(
