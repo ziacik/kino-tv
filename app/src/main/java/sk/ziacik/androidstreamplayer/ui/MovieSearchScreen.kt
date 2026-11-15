@@ -84,7 +84,6 @@ fun MovieSearchScreen(
 	onCancelResumeWatching: () -> Unit = {},
 	onRemoveResumeWatching: (Int) -> Unit = {},
 	startingResumeMovieId: Int? = null,
-	onSettings: () -> Unit = {},
 ) {
 	val state by controller.state.collectAsState()
 	val searchRequester = remember { FocusRequester() }
@@ -184,12 +183,6 @@ fun MovieSearchScreen(
 						keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
 						keyboardActions = KeyboardActions(onSearch = { controller.searchNow() }),
 					)
-					TextButton(
-						onClick = onSettings,
-						modifier = Modifier.testTag("settings-nav"),
-					) {
-						Text("Settings")
-					}
 				}
 
 				Spacer(Modifier.height(22.dp))
