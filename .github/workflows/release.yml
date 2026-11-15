@@ -1,12 +1,9 @@
 name: Release APK
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - master
-    paths:
-      - app/build.gradle.kts
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -21,6 +18,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v6
         with:
@@ -34,14 +33,36 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      - name: Read version from source
+      - name: Validate release tag and source version
         id: version
         shell: bash
         run: |
+          set -euo pipefail
+
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release tag must be vMAJOR.MINOR.PATCH, got: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
           version_name="$(sed -nE 's/^\s*versionName\s*=\s*"([^"]+)"\s*$/\1/p' app/build.gradle.kts | head -n1)"
           version_code="$(sed -nE 's/^\s*versionCode\s*=\s*([0-9]+)\s*$/\1/p' app/build.gradle.kts | head -n1)"
-          test -n "$version_name"
-          test -n "$version_code"
+
+          if [[ "$GITHUB_REF_NAME" != "v$version_name" ]]; then
+            echo "Release tag $GITHUB_REF_NAME does not match Android versionName $version_name" >&2
+            exit 1
+          fi
+          if [[ ! "$version_code" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Invalid Android versionCode: $version_code" >&2
+            exit 1
+          fi
+
+          # Do not publish a tag pointing to an unmerged feature branch.
+          git fetch --no-tags origin '+refs/heads/master:refs/remotes/origin/master'
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/master; then
+            echo "Release tag must reference a commit already merged into master" >&2
+            exit 1
+          fi
+
           echo "name=$version_name" >> "$GITHUB_OUTPUT"
           echo "code=$version_code" >> "$GITHUB_OUTPUT"
 
@@ -110,7 +131,7 @@ jobs:
           apk="kino-${VERSION_NAME}.apk"
           metadata="kino-update.json"
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "$apk" "$metadata" --clobber
-          else
-            gh release create "$tag" "$apk" "$metadata" --target "$GITHUB_SHA" --generate-notes --title "Kino ${VERSION_NAME}"
+            echo "Release $tag already exists; refusing to replace its APK" >&2
+            exit 1
           fi
+          gh release create "$tag" "$apk" "$metadata" --verify-tag --generate-notes --title "Kino ${VERSION_NAME}"

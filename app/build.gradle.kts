@@ -20,11 +20,11 @@ val releaseKeyPassword = System.getenv("KINO_KEY_PASSWORD")
 val torrServerAssets = mapOf(
     "arm64-v8a" to Pair(
         "TorrServer-android-arm64",
-        "23cea145c38e948f1a967c7fdbcb9c71506cd21a2fe7b3723903e233a323465b",
+        "760f18c6837c7fc1c440726a14e7534e3baca914b780fbc3ec28a38b6158aaf0",
     ),
     "armeabi-v7a" to Pair(
         "TorrServer-android-arm7",
-        "9bab078a0976b86ff392c9eee756194643f4e939ee2c9504dfd4ab7094ef9490",
+        "852e15b8d4739ac94ce0e046bba5c7a929b2ad75f980849cef10c668971ee764",
     ),
 )
 val torrServerAbis = providers.gradleProperty("torrserverAbi")
@@ -85,7 +85,7 @@ val prepareTorrServerBinary = tasks.register("prepareTorrServerBinary") {
             outputFile.delete()
 
             val url = URI(
-                "https://github.com/YouROK/TorrServer/releases/download/MatriX.143/$assetName",
+                "https://github.com/YouROK/TorrServer/releases/download/MatriX.150/$assetName",
             ).toURL()
             logger.lifecycle("Downloading TorrServer $assetName")
             url.openConnection().apply {

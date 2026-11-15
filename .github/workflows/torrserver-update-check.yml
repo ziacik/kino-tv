@@ -45,7 +45,16 @@ jobs:
           fi
 
           pinned_tag="${pinned_tags[0]}"
-          latest_json="$(gh api repos/YouROK/TorrServer/releases/latest)"
+          # Silo is a separate, incompatible rewrite; stay within the pinned release family.
+          family="${pinned_tag%%.*}"
+          latest_json="$(
+            gh api 'repos/YouROK/TorrServer/releases?per_page=100' \
+              | jq -c --arg family "$family" '
+                  [.[] | select(.draft == false and .prerelease == false)
+                    | select(.tag_name | startswith($family + "."))]
+                  | sort_by(.published_at) | last
+                '
+          )"
           latest_tag="$(jq -r '.tag_name' <<<"$latest_json")"
           release_url="$(jq -r '.html_url' <<<"$latest_json")"
           published_at="$(jq -r '.published_at' <<<"$latest_json")"
