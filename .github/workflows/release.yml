@@ -16,7 +16,59 @@ env:
   OPENSUBTITLES_API_KEY: ${{ secrets.OPENSUBTITLES_API_KEY }}
 
 jobs:
+  version-gate:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Publish only on a version bump
+        id: check
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          previous_config="$(git show "${BEFORE_SHA}:app/build.gradle.kts")"
+          current_config="$(cat app/build.gradle.kts)"
+          read_version() {
+            local name="$1"
+            local content="$2"
+            grep -m 1 -E "^[[:space:]]*${name}[[:space:]]*=" <<< "$content" |
+              sed -E 's/.*=[[:space:]]*//; s/^[" ]+//; s/[" ]+$//'
+          }
+          old_name="$(read_version versionName "$previous_config")"
+          old_code="$(read_version versionCode "$previous_config")"
+          new_name="$(read_version versionName "$current_config")"
+          new_code="$(read_version versionCode "$current_config")"
+
+          if [[ ! "$old_code" =~ ^[0-9]+$ || ! "$new_code" =~ ^[0-9]+$ || -z "$old_name" || -z "$new_name" ]]; then
+            echo "Cannot read Android version information" >&2
+            exit 1
+          fi
+          if [[ "$old_name" == "$new_name" && "$old_code" == "$new_code" ]]; then
+            echo "No version change; skip publishing"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$old_name" != "$new_name" && "$new_code" -gt "$old_code" ]]; then
+            echo "Version bump: $old_name ($old_code) -> $new_name ($new_code)"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Both versionName and versionCode must increase together" >&2
+            exit 1
+          fi
+
   release:
+    needs: version-gate
+    if: needs.version-gate.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -110,7 +162,7 @@ jobs:
           apk="kino-${VERSION_NAME}.apk"
           metadata="kino-update.json"
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "$apk" "$metadata" --clobber
-          else
-            gh release create "$tag" "$apk" "$metadata" --target "$GITHUB_SHA" --generate-notes --title "Kino ${VERSION_NAME}"
+            echo "Release $tag already exists; refusing to replace its APK" >&2
+            exit 1
           fi
+          gh release create "$tag" "$apk" "$metadata" --target "$GITHUB_SHA" --generate-notes --title "Kino ${VERSION_NAME}"
