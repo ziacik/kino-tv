@@ -33,12 +33,9 @@ import sk.ziacik.androidstreamplayer.catalog.MovieSearchController
 import sk.ziacik.androidstreamplayer.catalog.SeriesController
 import sk.ziacik.androidstreamplayer.playback.PlaybackController
 import sk.ziacik.androidstreamplayer.search.MovieTorrentSearchRequest
-import sk.ziacik.androidstreamplayer.search.SkTorrentCredentials
-import sk.ziacik.androidstreamplayer.search.SkTorrentCredentialsStore
 import sk.ziacik.androidstreamplayer.search.TorrentSearchController
 import sk.ziacik.androidstreamplayer.search.TorrentSearchProvider
 import sk.ziacik.androidstreamplayer.search.TorrentSearchResult
-import sk.ziacik.androidstreamplayer.settings.SettingsController
 import sk.ziacik.androidstreamplayer.torrent.TorrentSource
 import sk.ziacik.androidstreamplayer.torrent.TorrentStreamer
 import sk.ziacik.androidstreamplayer.watch.WatchProgressRepository
@@ -85,11 +82,6 @@ class NavigationFocusRegressionTest {
 				torrentSearchController = torrentSearchController,
 				playbackController = playbackController,
 				watchProgressRepository = watchProgressRepository(),
-				settingsController = SettingsController(object : SkTorrentCredentialsStore {
-					override fun load(): SkTorrentCredentials? = null
-					override fun save(credentials: SkTorrentCredentials) = Unit
-					override fun clear() = Unit
-				}),
 				playerContent = { _, _, _, _, _, _ -> Box(Modifier.testTag("kino-player")) },
 			)
 		}

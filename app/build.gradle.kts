@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.compile.JavaCompile
+import groovy.json.JsonOutput
 import java.net.URI
 import java.security.MessageDigest
 
@@ -12,6 +13,12 @@ val tmdbApiKey = providers.gradleProperty("tmdbApiKey")
     .orElse("")
 val openSubtitlesApiKey = providers.gradleProperty("opensubtitlesApiKey")
     .orElse(providers.environmentVariable("OPENSUBTITLES_API_KEY"))
+    .orElse("")
+val skTorrentUsername = providers.gradleProperty("skTorrentUsername")
+    .orElse(providers.environmentVariable("SKTORRENT_USERNAME"))
+    .orElse("")
+val skTorrentPassword = providers.gradleProperty("skTorrentPassword")
+    .orElse(providers.environmentVariable("SKTORRENT_PASSWORD"))
     .orElse("")
 val releaseKeystoreFile = System.getenv("KINO_KEYSTORE_FILE")
 val releaseKeystorePassword = System.getenv("KINO_KEYSTORE_PASSWORD")
@@ -122,12 +129,14 @@ android {
         applicationId = "sk.ziacik.androidstreamplayer"
         minSdk = 26
         targetSdk = 37
-        // Increment both values together for a public release; changing this file publishes it.
-        versionCode = 3
-        versionName = "0.1.2"
+        // Bump both values for a new release, then push a matching v<versionName> Git tag.
+        versionCode = 4
+        versionName = "0.1.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKey.get()}\"")
         buildConfigField("String", "OPENSUBTITLES_API_KEY", "\"${openSubtitlesApiKey.get()}\"")
+        buildConfigField("String", "SKTORRENT_USERNAME", JsonOutput.toJson(skTorrentUsername.get()))
+        buildConfigField("String", "SKTORRENT_PASSWORD", JsonOutput.toJson(skTorrentPassword.get()))
     }
 
     if (releaseKeystoreFile != null) {
@@ -198,6 +207,14 @@ val verifyTmdbApiKey = tasks.register("verifyTmdbApiKey") {
     }
 }
 
+val verifySkTorrentCredentials = tasks.register("verifySkTorrentCredentials") {
+    doLast {
+        require(skTorrentUsername.get().isNotBlank() && skTorrentPassword.get().isNotBlank()) {
+            "SKTORRENT_USERNAME and SKTORRENT_PASSWORD are required for release builds"
+        }
+    }
+}
+
 val verifyOpenSubtitlesApiKey = tasks.register("verifyOpenSubtitlesApiKey") {
     doLast {
         require(openSubtitlesApiKey.get().isNotBlank()) {
@@ -207,7 +224,7 @@ val verifyOpenSubtitlesApiKey = tasks.register("verifyOpenSubtitlesApiKey") {
 }
 
 tasks.matching { it.name == "preReleaseBuild" }.configureEach {
-    dependsOn(verifyTmdbApiKey, verifyOpenSubtitlesApiKey)
+    dependsOn(verifyTmdbApiKey, verifyOpenSubtitlesApiKey, verifySkTorrentCredentials)
 }
 
 tasks.matching { it.name == "preBuild" }.configureEach {

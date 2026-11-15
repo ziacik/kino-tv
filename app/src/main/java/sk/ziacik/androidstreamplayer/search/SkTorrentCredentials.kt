@@ -1,8 +1,5 @@
 package sk.ziacik.androidstreamplayer.search
 
-import android.content.Context
-import androidx.core.content.edit
-
 data class SkTorrentCredentials(
     val username: String,
     val password: String,
@@ -17,33 +14,13 @@ interface SkTorrentCredentialsStore {
     fun clear()
 }
 
-class SharedPreferencesSkTorrentCredentialsStore(context: Context) : SkTorrentCredentialsStore {
-    private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+/** Read-only login credentials supplied when building the APK. */
+class BundledSkTorrentCredentialsStore(
+    private val credentials: SkTorrentCredentials,
+) : SkTorrentCredentialsStore {
+    override fun load(): SkTorrentCredentials? = credentials.takeIf { it.isComplete }
 
-    override fun load(): SkTorrentCredentials? {
-        val username = preferences.getString(KEY_USERNAME, null).orEmpty()
-        val password = preferences.getString(KEY_PASSWORD, null).orEmpty()
-        return SkTorrentCredentials(username, password).takeIf { it.isComplete }
-    }
+    override fun save(credentials: SkTorrentCredentials) = Unit
 
-    override fun save(credentials: SkTorrentCredentials) {
-        if (!credentials.isComplete) {
-            clear()
-            return
-        }
-        preferences.edit {
-            putString(KEY_USERNAME, credentials.username.trim())
-            putString(KEY_PASSWORD, credentials.password)
-        }
-    }
-
-    override fun clear() {
-        preferences.edit { clear() }
-    }
-
-    private companion object {
-        const val PREFERENCES_NAME = "sktorrent_credentials"
-        const val KEY_USERNAME = "username"
-        const val KEY_PASSWORD = "password"
-    }
+    override fun clear() = Unit
 }
