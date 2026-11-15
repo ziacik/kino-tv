@@ -129,7 +129,7 @@ android {
         applicationId = "sk.ziacik.androidstreamplayer"
         minSdk = 26
         targetSdk = 37
-        // Increment both values together for a public release; changing this file publishes it.
+        // Bump both values for a new release, then push a matching v<versionName> Git tag.
         versionCode = 4
         versionName = "0.1.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
