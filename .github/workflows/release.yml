@@ -14,6 +14,8 @@ permissions:
 env:
   TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
   OPENSUBTITLES_API_KEY: ${{ secrets.OPENSUBTITLES_API_KEY }}
+  SKTORRENT_USERNAME: ${{ secrets.SKTORRENT_USERNAME }}
+  SKTORRENT_PASSWORD: ${{ secrets.SKTORRENT_PASSWORD }}
 
 jobs:
   release:
