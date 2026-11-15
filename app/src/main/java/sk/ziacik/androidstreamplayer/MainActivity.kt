@@ -27,6 +27,8 @@ import sk.ziacik.androidstreamplayer.catalog.TmdbMovieCatalog
 import sk.ziacik.androidstreamplayer.playback.PlaybackController
 import sk.ziacik.androidstreamplayer.player.Media3PlayerPort
 import sk.ziacik.androidstreamplayer.search.CompositeTorrentSearchProvider
+import sk.ziacik.androidstreamplayer.search.FallbackSkTorrentCredentialsStore
+import sk.ziacik.androidstreamplayer.search.SkTorrentCredentials
 import sk.ziacik.androidstreamplayer.search.KnabenTorrentSearchProvider
 import sk.ziacik.androidstreamplayer.search.OkHttpSkTorrentSession
 import sk.ziacik.androidstreamplayer.search.SharedPreferencesSkTorrentCredentialsStore
@@ -114,7 +116,13 @@ class MainActivity : ComponentActivity() {
 			scope = appScope,
 			catalog = movieCatalog,
 		)
-		val skTorrentCredentialsStore = SharedPreferencesSkTorrentCredentialsStore(applicationContext)
+		val skTorrentCredentialsStore = FallbackSkTorrentCredentialsStore(
+			local = SharedPreferencesSkTorrentCredentialsStore(applicationContext),
+			bundled = SkTorrentCredentials(
+				username = BuildConfig.SKTORRENT_USERNAME,
+				password = BuildConfig.SKTORRENT_PASSWORD,
+			),
+		)
 		val skTorrentSession = OkHttpSkTorrentSession()
 		val skTorrentTorrentFileFetcher = SkTorrentTorrentFileFetcher(
 			credentialsStore = skTorrentCredentialsStore,
